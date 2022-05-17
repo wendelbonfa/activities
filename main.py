@@ -12,9 +12,9 @@ from logs import logger
 loop = asyncio.get_event_loop()
 
 # discord token activities weekly
-WEEKLY_TOKEN = "OTM4NTEzMTY1MDczOTIwMDgy.YfrYfw.VZiTqd3ZbQ8WhDsrn7MJA91MsCk"
+WEEKLY_TOKEN = "OTM4NTEzMTY1MDczOTIwMDgy.YfrYfw.xnEsTH2-IOSkSZipPP8PT4FbXeg"
 # discord token activities daily
-DAILY_TOKEN = "OTQzOTQ5NTIwNDY5OTE3Nzc2.Yg6ffw.KRtWY6VYURBTGOZieL4JHy4gFXE"
+DAILY_TOKEN = "OTQzOTQ5NTIwNDY5OTE3Nzc2.Yg6ffw.EbupBjaBVZwYJ3Jv17qGcWq8xfo"
 
 # ajuda a adicionar os dias para notificação semanal quando checkado na mensagem
 COUNT_DAYS_WEEKLY = {
@@ -181,24 +181,44 @@ async def on_raw_reaction_add(payload):
                     # Adiciona o date time da proxima notificação
                     next_date = f'{(now + timedelta(days=1)).strftime("%d/%m/%Y")} 12:00:00'              
                     user = await bot_daily.fetch_user(payload.user_id) 
-                    if len(conn.select_notified(payload.guild_id, payload.user_id, 'daily')) == 0:
-                        # insere no banco que o usuário ja foi notificado
-                        conn.insert_notified(payload.guild_id, payload.user_id, last, next_date, 'daily') 
-                    else:
-                        # insere no banco que o usuário ja foi notificado
-                        conn.update_notified(payload.guild_id, payload.user_id, last, next_date, 'daily') 
+                    try_times = 5
+                    while(True):
+                      try:
+                        if len(conn.select_notified(payload.guild_id, payload.user_id, 'daily')) == 0:
+                            # insere no banco que o usuário ja foi notificado
+                            conn.insert_notified(payload.guild_id, payload.user_id, last, next_date, 'daily') 
+                        else:
+                            # insere no banco que o usuário ja foi notificado
+                            conn.update_notified(payload.guild_id, payload.user_id, last, next_date, 'daily') 
+                        break
+                      except:
+                        await asyncio.sleep(15)
+                        try_times = try_times -1
+                        if try_times == 0:
+                            break                        
+                        continue
                     await send_discord_pm_daily(user)
                 # se o emoji for :ballot_box_with_check: envia a primeira lista e adiciona no banco para as próximas
                 if payload.emoji.name == '☑️': 
                     amount_days = COUNT_DAYS_WEEKLY[now.weekday()]
                     next_date = f'{(now + timedelta(days=amount_days)).strftime("%d/%m/%Y")} 07:00:00'
                     user = await bot_weekly.fetch_user(payload.user_id) 
-                    if len(conn.select_notified(payload.guild_id, payload.user_id, 'weekly')) == 0:
-                        # insere no banco que o usuário ja foi notificado
-                        conn.insert_notified(payload.guild_id, payload.user_id, last, next_date, 'weekly')
-                    else:
-                        # insere no banco que o usuário ja foi notificado
-                        conn.update_notified(payload.guild_id, payload.user_id, last, next_date, 'weekly')
+                    try_times = 5
+                    while(True):
+                      try:  
+                        if len(conn.select_notified(payload.guild_id, payload.user_id, 'weekly')) == 0:
+                            # insere no banco que o usuário ja foi notificado
+                            conn.insert_notified(payload.guild_id, payload.user_id, last, next_date, 'weekly')
+                        else:
+                            # insere no banco que o usuário ja foi notificado
+                            conn.update_notified(payload.guild_id, payload.user_id, last, next_date, 'weekly')
+                        break
+                      except:
+                        await asyncio.sleep(15)
+                        try_times = try_times -1
+                        if try_times == 0:
+                            break
+                        continue                          
                     await send_discord_pm_weekly(user)     
     except Exception as err:
         logger.error(f'Erro na função de ativação do bot usando reação: {err} guild: {payload.guild_id}, user: {payload.user_id}, reaction: {payload.emoji.name}')                    
@@ -230,8 +250,8 @@ async def discord_async_method():
     """
     while True:
         try:
-            # aguarda 10 segundos por execução
-            await asyncio.sleep(60)
+            # aguarda 30 segundos por execução
+            await asyncio.sleep(30)
             # pega data hora corrente e converte para america ssão paulo
             now = datetime.now()-timedelta(hours=3) 
             # pega todos usuário que receberam notificação
@@ -239,7 +259,7 @@ async def discord_async_method():
             # faz loop nnos usuários para avaliar quais serão notificados
             for user in users:
                 # pega data hora do proximo envio
-                next_date = datetime.strptime(user[3], '%d/%m/%Y %H:%M:%S')         
+                next_date = datetime.strptime(user[3], '%d/%m/%Y %H:%M:%S')   
                 # Avalia e notifica para diárias
                 if user[4] == 'daily':              
                     if next_date <= now:
@@ -252,11 +272,22 @@ async def discord_async_method():
                                 except:
                                     continue
                             # preenche ultimo notificação
-                            last = now.strftime("%d/%m/%Y %H:%M:%S")
+                            last = f'{(now + timedelta(days=1)).strftime("%d/%m/%Y")} 12:00:00'  
                             # preenche próxima notificação
                             next_date = f'{(now + timedelta(days=1)).strftime("%d/%m/%Y")} 12:00:00'  
                             # atualiza banco de dados
-                            conn.update_notified(user[0], user[1], last, next_date, 'daily')             
+                            try_times = 5
+                            while(True):
+                              try:                            
+                                conn.update_notified(user[0], user[1], last, next_date, 'daily')  
+                                break
+                              except:
+                                await asyncio.sleep(15)
+                                try_times = try_times -1
+                                if try_times == 0:
+                                    break
+                                continue                          
+                            logger.error(f"proxima: {next_date} now: {now}") 
                             # envia notificação diária
                             await send_discord_pm_daily(user_disc) 
                         except:
@@ -272,12 +303,22 @@ async def discord_async_method():
                                 except:
                                     continue                      
                             # preenche ultimo notificação
-                            last = now.strftime("%d/%m/%Y %H:%M:%S")
+                            last = f'{(now + timedelta(days=amount_days)).strftime("%d/%m/%Y")} 07:00:00'
                             # preenche próxima notificação
                             amount_days = COUNT_DAYS_WEEKLY[now.weekday()]
                             # atualiza banco de dados
                             next_date = f'{(now + timedelta(days=amount_days)).strftime("%d/%m/%Y")} 07:00:00'
-                            conn.update_notified(user[0], user[1], last, next_date, 'weekly')
+                            try_times = 5
+                            while(True):
+                              try:                            
+                                conn.update_notified(user[0], user[1], last, next_date, 'weekly')  
+                                break
+                              except:
+                                await asyncio.sleep(15)
+                                try_times = try_times -1
+                                if try_times == 0:
+                                    break
+                                continue
                             # envia notificação semanal
                             await send_discord_pm_weekly(user_disc) 
                         except:
