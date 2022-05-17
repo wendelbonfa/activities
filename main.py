@@ -11,11 +11,9 @@ from logs import logger
 
 loop = asyncio.get_event_loop()
 
-
 WEEKLY_TOKEN = ""
 # discord token activities daily
 DAILY_TOKEN = ""
-
 
 # ajuda a adicionar os dias para notificação semanal quando checkado na mensagem
 COUNT_DAYS_WEEKLY = {
