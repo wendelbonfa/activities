@@ -1,12 +1,13 @@
-# Bot Discord de envio de atividaes diárias e semanais
+# Bot Discord de envio de atividades diÃ¡rias e semanais
 ## Montagem do ambinete de desenvolvimento
 
-Utilize a verão 3.8.13 do python [download](https://www.python.org/downloads/release/python-3813/) após efetuado o downalod instale.
-Baixe o repositório [activities](https://github.com/wendelbonfa/activities)
+Utilize a verÃ£o 3.8.13 do python [download](https://www.python.org/downloads/release/python-3813/) apÃ³s efetuado o downalod efetue a instalaÃ§Ã£o do mesmo.
+Baixe o repositÃ³rio [activities](https://github.com/wendelbonfa/activities)
 
-Abra um terminal windows dentro da pasta do projeto e execute os comando
+usando o comando git acesse a aplicaÃ§Ã£o seguindo os comando abaixo
 
 ```sh
+> git clone https://github.com/wendelbonfa/activities.git
 > cd activities
 > python -m venv venv
 > venv\Scripts\activate
@@ -15,11 +16,11 @@ Abra um terminal windows dentro da pasta do projeto e execute os comando
 
 Crie as chaves dos seus bots em [applications discord](https://discordapp.com/developers/applications/).
 
-Crie também um banco de dados por padrão o bot usa o postgres eu utilizo o [elephantsql](https://www.elephantsql.com/)
+Crie tambÃ©m um banco de dados por padrÃ£o o bot usa o postgres eu utilizo o [elephantsql](https://www.elephantsql.com/)
 
-crie as tabelas usando os comando no seu banco de dados:
+Crie as tabelas usando os comando no seu banco de dados conforme SQL's abaixo:
 
-criar tabela discords
+SQL para criar tabela discords.
 
 ```sh
 -- Table: public.discords
@@ -41,7 +42,7 @@ ALTER TABLE public.discords
     OWNER to hqelnelu;
 ```
 
-criar tabela notified
+SQL para criar tabela notified
 
 ```sh
 -- Table: public.notified
@@ -65,9 +66,9 @@ ALTER TABLE public.notified
     OWNER to hqelnelu;
 ```
 
-edite o arquivo .env colocando o token do bot para a notificação diária e semanal e as configurações de acesso ao banco
+Edite o arquivo .env colocando o token do bot gerado no discord para a notificaÃ§Ã£o diÃ¡ria e semanal e as configuraÃ§Ãµes de acesso ao banco.
 
-no mesmo terminal execute o comando 
+no mesmo terminal execute o comando com o venv ativo execute.
 
 ```sh
 (venv) > python mains.py
