@@ -1,29 +1,74 @@
-# Hosting your discord.py bot on Heroku
-### What are the prerequisites for this guide?
-You must have an account for Discord [[Link](https://discordapp.com/developers/applications/)], GitHub [[Link](https://github.com/join)] , and Heroku [[Link](https://signup.heroku.com/)].
+# Bot Discord de envio de atividaes diárias e semanais
+## Montagem do ambinete de desenvolvimento
 
-### How do I create a bot and get a bot token?
-* Create an application in the developer portal by clicking [here](https://discordapp.com/developers/applications/)
-* Open up your new application and click 'Add Bot' under the Bot settings to create your bot.
-* After creating the bot, click the 'Copy' button under the title Token. Take note of your token as you will need it later.
+Utilize a verão 3.8.13 do python [download](https://www.python.org/downloads/release/python-3813/) após efetuado o downalod instale.
+Baixe o repositório [activities](https://github.com/wendelbonfa/activities)
 
-### How to fork the repository and set it up to work with Heroku?
-* Fork a copy of this repository by clicking the 'Fork' on the upper right-hand.
-* Create an application for Heroku by clicking [here](https://dashboard.heroku.com/new-app).
-* Under 'Deploy', do the following:
-  * Deployment Method => Connect your GitHub
-  * App connected to GitHub => Search for the forked repository
-  * Automatic Deploy => Enable Automatic Deploy (to redeploy after every commit)
-* Under 'Settings', click on 'Reveal Config Vars' and enter the following:
-  * KEY => DISCORD_TOKEN
-  * VALUE => (Enter the bot token that you copied from the developer portal)
-  * Click the 'Add' button after entering all of this information.
-* Under 'Resources', do the following:
-  * Click on the 'Pencil' icon.
-  * Switch the worker from off to on.
-  * Click 'Confirm' to finalize the decision.
-  * NOTE: You are allocated 550 free Dyno hours, which will not last the entire month. However, if you provide a credit card to verify your identity, you are given an additional 450 hours, which will allow your bot to run indefinitely.
+Abra um terminal windows dentro da pasta do projeto e execute os comando
 
-# TO-DO LIST
-* Revise the tutorial to be easier to understand for any user.
-* Add some images for following along with the process.
+```sh
+> cd activities
+> python -m venv venv
+> venv\Scripts\activate
+(venv) > pip install -r requirements.txt
+```
+
+Crie as chaves dos seus bots em [applications discord](https://discordapp.com/developers/applications/).
+
+Crie também um banco de dados por padrão o bot usa o postgres eu utilizo o [elephantsql](https://www.elephantsql.com/)
+
+crie as tabelas usando os comando no seu banco de dados:
+
+criar tabela discords
+
+```sh
+-- Table: public.discords
+
+-- DROP TABLE public.discords;
+
+CREATE TABLE IF NOT EXISTS public.discords
+(
+    channel_id character varying(1000) COLLATE pg_catalog."default",
+    guild_id character varying(1000) COLLATE pg_catalog."default",
+    msg_id character varying(1000) COLLATE pg_catalog."default"
+)
+WITH (
+    OIDS = FALSE
+)
+TABLESPACE pg_default;
+
+ALTER TABLE public.discords
+    OWNER to hqelnelu;
+```
+
+criar tabela notified
+
+```sh
+-- Table: public.notified
+
+-- DROP TABLE public.notified;
+
+CREATE TABLE IF NOT EXISTS public.notified
+(
+    next_notify character varying(1000) COLLATE pg_catalog."default",
+    guild_id character varying(1000) COLLATE pg_catalog."default",
+    member_id character varying(1000) COLLATE pg_catalog."default",
+    last_notify character varying(1000) COLLATE pg_catalog."default",
+    context character varying(100) COLLATE pg_catalog."default"
+)
+WITH (
+    OIDS = FALSE
+)
+TABLESPACE pg_default;
+
+ALTER TABLE public.notified
+    OWNER to hqelnelu;
+```
+
+edite o arquivo .env colocando o token do bot para a notificação diária e semanal e as configurações de acesso ao banco
+
+no mesmo terminal execute o comando 
+
+```sh
+(venv) > python mains.py
+```
