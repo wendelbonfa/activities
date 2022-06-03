@@ -3,17 +3,29 @@ import discord
 import pytz
 import asyncio
 import db_manager
+from dotenv import load_dotenv
 
-from keep_alive import keep_alive
+# Carrega variáveis de ambiente para utilização no script
+load_dotenv()
+
 from discord.ext import commands
 from datetime import datetime, timedelta
 from logs import logger
 
 loop = asyncio.get_event_loop()
 
-WEEKLY_TOKEN = ""
 # discord token activities daily
-DAILY_TOKEN = ""
+DAILY_TOKEN = os.getenv("DAILY")
+# discord token activities weekly
+WEEKLY_TOKEN = os.getenv("WEEKLY")
+
+# cria conexão com banco de dados
+# Carregar Configurações de Conexão
+DB_HOST = os.getenv("DB_HOST") 
+DB_PORT = int(os.getenv("DB_PORT"))
+DB_NAME = os.getenv("DB_NAME")
+DB_USER = os.getenv("DB_USER")
+DB_PASSWD = os.getenv("DB_PASSWD") 
 
 # ajuda a adicionar os dias para notificação semanal quando checkado na mensagem
 COUNT_DAYS_WEEKLY = {
@@ -29,8 +41,10 @@ COUNT_DAYS_WEEKLY = {
 # nome do projeto
 PROJ_NAME = os.path.basename(os.path.dirname(os.path.abspath(__file__)))
 
-# cria conexão com banco de dados
-conn = db_manager.DBManager()  
+# Abre a conexão com o banco de dado
+conn = db_manager.DbManager( 
+    DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWD
+    )
 
 # pega o timezone America São paulo
 tz = pytz.timezone('America/Sao_Paulo')   
@@ -174,7 +188,6 @@ async def on_raw_reaction_add(payload):
             if payload.channel_id == int(guild_info[0][1]):  
                 # pega a data hora corrente para colocar como ultima notificação
                 now = datetime.utcnow().replace(tzinfo=pytz.utc).astimezone(tz)
-                last = now.strftime("%d/%m/%Y %H:%M:%S")
                 # se o emoji for :white_check_mark: envia a primeira lista e adiciona no banco para as próximas
                 if payload.emoji.name == '✅':
                     # Adiciona o date time da proxima notificação
@@ -185,10 +198,10 @@ async def on_raw_reaction_add(payload):
                       try:
                         if len(conn.select_notified(payload.guild_id, payload.user_id, 'daily')) == 0:
                             # insere no banco que o usuário ja foi notificado
-                            conn.insert_notified(payload.guild_id, payload.user_id, last, next_date, 'daily') 
+                            conn.insert_notified(payload.guild_id, payload.user_id, next_date, next_date, 'daily') 
                         else:
                             # insere no banco que o usuário ja foi notificado
-                            conn.update_notified(payload.guild_id, payload.user_id, last, next_date, 'daily') 
+                            conn.update_notified(payload.guild_id, payload.user_id, next_date, next_date, 'daily') 
                         break
                       except:
                         await asyncio.sleep(15)
@@ -207,10 +220,10 @@ async def on_raw_reaction_add(payload):
                       try:  
                         if len(conn.select_notified(payload.guild_id, payload.user_id, 'weekly')) == 0:
                             # insere no banco que o usuário ja foi notificado
-                            conn.insert_notified(payload.guild_id, payload.user_id, last, next_date, 'weekly')
+                            conn.insert_notified(payload.guild_id, payload.user_id, next_date, next_date, 'weekly')
                         else:
                             # insere no banco que o usuário ja foi notificado
-                            conn.update_notified(payload.guild_id, payload.user_id, last, next_date, 'weekly')
+                            conn.update_notified(payload.guild_id, payload.user_id, next_date, next_date, 'weekly')
                         break
                       except:
                         await asyncio.sleep(15)
@@ -252,7 +265,7 @@ async def discord_async_method():
             # aguarda 30 segundos por execução
             await asyncio.sleep(30)
             # pega data hora corrente e converte para america ssão paulo
-            now = datetime.now()-timedelta(hours=3) 
+            now = datetime.now()-timedelta(hours=3)  
             # pega todos usuário que receberam notificação
             users = conn.select_all_notified()
             # faz loop nnos usuários para avaliar quais serão notificados
@@ -270,15 +283,13 @@ async def discord_async_method():
                                     break
                                 except:
                                     continue
-                            # preenche ultimo notificação
-                            last = f'{(now + timedelta(days=1)).strftime("%d/%m/%Y")} 12:00:00'  
                             # preenche próxima notificação
                             next_date = f'{(now + timedelta(days=1)).strftime("%d/%m/%Y")} 12:00:00'  
                             # atualiza banco de dados
                             try_times = 5
                             while(True):
                               try:                            
-                                conn.update_notified(user[0], user[1], last, next_date, 'daily')  
+                                conn.update_notified(user[0], user[1], next_date, next_date, 'daily')  
                                 break
                               except:
                                 await asyncio.sleep(15)
@@ -301,8 +312,6 @@ async def discord_async_method():
                                     break
                                 except:
                                     continue                      
-                            # preenche ultimo notificação
-                            last = f'{(now + timedelta(days=amount_days)).strftime("%d/%m/%Y")} 07:00:00'
                             # preenche próxima notificação
                             amount_days = COUNT_DAYS_WEEKLY[now.weekday()]
                             # atualiza banco de dados
@@ -310,7 +319,7 @@ async def discord_async_method():
                             try_times = 5
                             while(True):
                               try:                            
-                                conn.update_notified(user[0], user[1], last, next_date, 'weekly')  
+                                conn.update_notified(user[0], user[1], next_date, next_date, 'weekly')  
                                 break
                               except:
                                 await asyncio.sleep(15)
@@ -321,7 +330,7 @@ async def discord_async_method():
                             # envia notificação semanal
                             await send_discord_pm_weekly(user_disc) 
                         except:
-                            continue                
+                            continue   
         except Exception as err:
             logger.error(f'Erro loop de checagem para envio de notificação: {err}')                             
             continue
@@ -330,7 +339,7 @@ async def discord_async_method():
 asyncio.get_event_loop().create_task(discord_async_method())
 
 # padrão do replit para deixar a plicação executando
-keep_alive()
+#keep_alive()
 
 # inicializa os bots
 # bot_weekly notificações diárias

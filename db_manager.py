@@ -1,96 +1,152 @@
-# -*- coding: utf-8 -*-
-import os
-import sqlite3
+# -*- coding: UTF-8 -*-
 from logs import logger
+import psycopg2
+import psycopg2.extras
+import psycopg2.extensions
+from datetime import datetime
+import platform
 
-class DBManager(object):
-    u"""
-        Manager do banco de dados sqlite 
+u"""
+   Testa se execução é feita no windows ou linux para ativar DEBUG 
+"""
+if platform.system() == 'Windows':
+    u""" ativa modo debug """
+    DEBUG = True
+else:
+    u""" Desativa modo debug """
+    DEBUG = False
+
+psycopg2.extensions.register_type(psycopg2.extensions.UNICODE)
+
+
+class DbManager(object):
     """
-
-    def __init__(self, log=None):
-        u"""Initialize internal  dictionaries."""
-        
-        # pega o coaminho onde a aplicaçãoesta executando para 
-        #localizar o banco de dados
-        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-        self.db_path = os.path.join(BASE_DIR, 'sqlite.db')
-        
-        # Inicia coneção do sql
-        try:
-            self._db = sqlite3.connect(self.db_path)
-            self._cur = self._db.cursor()
-        except Exception as err:  
-            logger.error(f'Erro na conexão com o banco: {err}')
-
-
-    def __del__(self):
-        u"""
-            limpa recursos do rbanco de dados
+        Gerenciador da conexão com o banco de dados
+    """
+    def __init__(self, host, port, dbname, user, pwd):
         """
-        self._cur.close()
-        self._db.close()          
+            inicializador das variáveis
+        :param host: IP ou HOST do local onde o banco de dados esta instalado
+        :param port: Porta configurado no banco de dados
+        :param dbname: Nome do Banco de dados
+        :param user: Usuário do banco de dados
+        :param pwd: Password do banco de dados
+        """
+        self.host = host
+        self.port = port
+        self.dbname = dbname
+        self.user = user
+        self.pwd = pwd
+        self.conn = None
+        self.cursor = None
+        self.open_connection()
 
+    def open_connection(self):
+        u"""
+            Abre a conexão com banco de dados
+        :return: None
+        """
+        try:
+            self.conn = psycopg2.connect(host=self.host,
+                                         port=self.port,
+                                         database=self.dbname,
+                                         user=self.user,
+                                         password=self.pwd)
 
-    def exec_query(self, sql, fetch=True, commit=False):
+        except (psycopg2.DatabaseError, psycopg2.OperationalError):
+            logger.error(u"Erro ao tentar conexão ao banco de dados.")
+
+    def close_connection(self):
+        u"""
+            Close a conexão com banco de dados
+        :return: None
+        """
+        try:
+            self.conn.close()
+        except (psycopg2.DatabaseError, psycopg2.OperationalError):
+            logger.error(u"Erro ao tentar fechar conexÃ£o ao banco de dados.")
+
+    def execute_query(self, query, dict_result=False):
+        u"""
+            Execute sql query no banco de dados
+        :return: None
+        """
+        try:
+            if dict_result:
+                self.dict_cursor.execute(query)
+            else:
+                self.cursor.execute(query)
+        except Exception as e:
+            logger.error(f"Erro: {e}")
+
+    def query(self, sql, fetch=True, commit=False, dict_result=False, many=0):
+        u"""
+            executa query passada como parâmetros retornando possíveis resultados
+        :param sql: query a ser executada
+        :param fetch: define se o fetch ser executado ou não
+        :param commit: define a execucão de commit
+        :param dict_result: define se o retorno será um dicionário
+        :param many: define multiplos parâmetros
+        :return: resultados da consulta, se fetch com valor 'True'
+        """
+        rowcount = 0
+        try:
+            if dict_result:
+                self.cursor = self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+            else:
+                self.cursor = self.conn.cursor()
+
+            if many:
+                self.cursor.executemany(sql, many)
+            else:
+                self.cursor.execute(sql)
+
+            if fetch:
+                return self.cursor.fetchall()
+
+            rowcount = self.cursor.rowcount
+        except:
+            self.restablish_db_connection()
+
+        finally:
+            if commit:
+                self.conn.commit()
+            self.cursor.close()
+        return rowcount
+
+    def exec_query(self, sql, *params):
         u"""
             Rotina genérica de consulta.
-        :param sql: Contém a string com a instrução sql a ser executada
-        :param fetch: define se o fetch será executado ou não
-        :param commit: define a execuão será de commit
+        :param sql: query a ser executada
+        :param params: parâmetros de consulta
+        :return: Resultado da consulta
         """
-        try:            
-            result = self.query(sql, fetch=fetch, commit=commit)
+        if params:
+            sql_query = sql % params
+        else:
+            sql_query = sql
+        try:
+            result = self.query(sql_query, dictret=True)
         except:
             self.restablish_db_connection()
             raise
         if result:
             return result
         else:
-            return []
-
-
-    def query(self, sql, fetch=True, commit=False, dictret=False, many=0):
-        u"""
-            executa query passada como parâmetros retornando 
-            possiveis resultados.
-        :param sql: Contém a string com a instrução sql a ser executada
-        :param fetch: define se o fetch será executado ou não
-        :param commit: define a execuão será de commit
-        :param dictret: define se o retorno será um um dicionário
-        :return: resultados da consulta, se fetch verdadeiro
-        """        
-        self._cur = self._db.cursor()
-        try:
-            if many:
-                self._cur.executemany(sql, many)
-            else:
-                self._cur.execute(sql)
-
-            if fetch:
-                return self._cur.fetchall()
-        finally:
-            if commit:
-                self._db.commit()
-
+            return
 
     def restablish_db_connection(self):
         u"""
             Restabelece conexão global com banco de dados.
+        :return: None
         """
         try:
-            retries = 3
-            while retries > 0:
-                try:
-                    if self._db:
-                        self._db.close()
-                        break
-                except:
-                    pass
+            if self.conn:
+                self.close_connection()
+        except Exception as e:
+            logger.error(f"Erro: {e}")
 
-                self._db.connect(self.db_path)
-        except Exception as err:  
-            logger.error(f'Erro na reconexão com o banco: {err}')              
+        self.open_connection()
 
     def insert_guild(self, guild_id, channel_id, msg_id):
         u"""
@@ -103,8 +159,7 @@ class DBManager(object):
             query = f"""
 INSERT INTO discords (guild_id, channel_id, msg_id) 
 VALUES ('{guild_id}','{channel_id}','{msg_id}')"""            
-            self._cur.execute(query)
-            self._db.commit()
+            self.query(query, fetch=False, commit=True)
         except Exception as e:                 
             logger.error(f'discord server erro: {e}')
 
@@ -118,7 +173,11 @@ VALUES ('{guild_id}','{channel_id}','{msg_id}')"""
             query = f"""
 SELECT guild_id, channel_id, msg_id FROM discords 
 WHERE guild_id = '{guild_id}'"""      
-            return self.exec_query(query) or []   
+            results = self.query(query, dict_result=True)
+            if results == None:
+                return None
+            else:
+                return results   
         except Exception as e:                 
             logger.error(f'select discord server erro: {e}') 
             return []
@@ -130,7 +189,11 @@ WHERE guild_id = '{guild_id}'"""
         """
         try:
             query = f"SELECT guild_id, channel_id, msg_id FROM discords"      
-            return self.exec_query(query) or []   
+            results = self.query(query, dict_result=True)
+            if results == None:
+                return None
+            else:
+                return results 
         except Exception as e:                 
             logger.error(f'select discord server erro: {e}') 
             return []             
@@ -147,8 +210,7 @@ WHERE guild_id = '{guild_id}'"""
             query = f"""
 UPDATE discords set channel_id = {channel_id}, msg_id = {msg_id} 
 WHERE guild_id = '{guild_id}'"""
-            self._cur.execute(query)
-            self._db.commit() 
+            self.query(query, fetch=False, commit=True)
         except Exception as e:                 
             logger.error(f'update discord server erro: {e}')  
 
@@ -165,9 +227,8 @@ WHERE guild_id = '{guild_id}'"""
         try:
             query = f"""
 INSERT INTO notified (guild_id, member_id, last_notify, next_notify, context) 
-VALUES ('{guild_id}','{member_id}','{last_notify}','{next_notify}','{context}')"""
-            self._cur.execute(query)
-            self._db.commit()
+VALUES ('{guild_id}','{member_id}','{next_notify}','{next_notify}','{context}')"""
+            self.query(query, fetch=False, commit=True)
         except Exception as e:                 
             logger.error(f'insert notified erro: {e}')
 
@@ -198,10 +259,9 @@ WHERE guild_id = '{guild_id}' AND member_id = '{member_id}' AND context = '{cont
         """
         try:
             query = f"""
-UPDATE notified set last_notify = '{last_notify}', next_notify = '{next_notify}'
+UPDATE notified set last_notify = '{next_notify}', next_notify = '{next_notify}'
 WHERE guild_id = '{guild_id}' AND member_id = '{member_id}' AND context = '{context}'"""
-            self._cur.execute(query)
-            self._db.commit() 
+            self.query(query, fetch=False, commit=True) 
         except Exception as e:                 
             logger.error(f'update notified erro: {e}')       
 
@@ -216,7 +276,11 @@ WHERE guild_id = '{guild_id}' AND member_id = '{member_id}' AND context = '{cont
             query = f"""
 SELECT guild_id, member_id, last_notify, next_notify, context from notified
 WHERE guild_id = '{guild_id}' AND member_id = '{member_id}' AND context = '{context}'"""
-            return self.exec_query(query) or []   
+            results = self.query(query, dict_result=True)
+            if results == None:
+                return None
+            else:
+                return results   
         except Exception as e:                 
             logger.error(f'selection notified erro: {e}')       
 
@@ -226,6 +290,10 @@ WHERE guild_id = '{guild_id}' AND member_id = '{member_id}' AND context = '{cont
         """
         try:
             query = f"""SELECT guild_id, member_id, last_notify, next_notify, context from notified"""
-            return self.exec_query(query) or []   
+            results = self.query(query, dict_result=True)
+            if results == None:
+                return None
+            else:
+                return results 
         except Exception as e:                 
-            logger.error(f'selection notified erro: {e}')    
+            logger.error(f'selection notified erro: {e}')            
